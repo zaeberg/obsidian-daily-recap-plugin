@@ -7,12 +7,6 @@ import { SectionExtractor } from '../parsers/SectionExtractor';
  * Чистый класс без зависимостей от Obsidian API
  */
 export class ReportGeneratorService {
-  // Названия секций из daily notes
-  private static SECTION_PLAN = 'План (3 главных задачи)';
-  private static SECTION_TODAY = 'Сегодня (рабочий лог)';
-  private static SECTION_BLOCKERS = 'Блокеры / вопросы';
-  private static SECTION_SUMMARY = 'Итого';
-
   /**
    * Генерирует полный markdown контент отчёта
    * @param reportData - данные для генерации
@@ -28,7 +22,7 @@ export class ReportGeneratorService {
     const { startDate, endDate, allFiles, includedFiles } = reportData;
 
     let content = this.generateHeader(startDate, endDate, lastReport);
-    content += '---\n\n';
+    content += '\n---\n\n';
 
     // Генерируем содержимое для каждой заметки
     content += this.generateNotesContent(
@@ -52,11 +46,11 @@ export class ReportGeneratorService {
     lastReport: ReportInfo | null
   ): string {
     let content = '# Work Recap Report\n\n';
-    content += `**Generated:** ${endDate.format('YYYY-MM-DD HH:mm')}\n\n`;
-    content += `**Period:** ${startDate.format('YYYY-MM-DD')} - ${endDate.format('YYYY-MM-DD')}\n\n`;
+    content += `**Generated:** ${endDate.format('YYYY-MM-DD HH:mm')}\n`;
+    content += `**Period:** ${startDate.format('YYYY-MM-DD')} - ${endDate.format('YYYY-MM-DD')}\n`;
 
     if (lastReport) {
-      content += `*Previous report: ${lastReport.reportDate} ${lastReport.reportTime}*\n\n`;
+      content += `*Previous report: ${lastReport.reportDate} ${lastReport.reportTime}*\n`;
     }
 
     return content;
@@ -133,7 +127,7 @@ export class ReportGeneratorService {
     }));
 
     // Генерируем заголовок секции
-    content += `## ${sectionName}\n\n`;
+    content += `## ${sectionName}\n`;
 
     // Для каждой заметки добавляем контент если он есть
     for (const { note, sections } of notesWithSections) {
@@ -150,9 +144,6 @@ export class ReportGeneratorService {
     if (!hasContent) {
       return '';
     }
-
-    // Добавляем пустую строку между секциями
-    content += '\n';
 
     return content;
   }
@@ -181,7 +172,7 @@ export class ReportGeneratorService {
     const maxDays = 21;
     const limitedDays = missingDays.slice(-maxDays);
 
-    let content = '## Missing Days\n\n';
+    let content = '\n## Missing Days\n\n';
 
     // Если список был обрезан, добавляем уведомление
     if (missingDays.length > maxDays) {

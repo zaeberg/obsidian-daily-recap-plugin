@@ -27,11 +27,11 @@ export class DailyRecapSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Included Sections')
       .setDesc(
-        'Enter section titles (## headers) to include in recap, separated by commas. Example: План (3 главных задачи), Сегодня (рабочий лог)'
+        'Enter section titles (## headers) to include in recap, separated by commas. Example: План, Лог'
       )
       .addText((text) =>
         text
-          .setPlaceholder('План (3 главных задачи), Сегодня (рабочий лог)')
+          .setPlaceholder('План, Лог')
           .setValue(settings.includedSections.join(', '))
           .onChange(async (value) => {
             // Парсим строку, разделяем по запятым и убираем пробелы

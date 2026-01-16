@@ -29,7 +29,7 @@ When identifying relevant context, output **references only**, not content:
 
 ### Plan File Management
 
-Create `{task-name}.plan.md` in the project root with this structure:
+Create `{task-name}.plan.md` in the ./plans/ directory with this structure:
 
 ```markdown
 # {Task Title}
