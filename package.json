@@ -1,0 +1,32 @@
+{
+  "name": "obsidian-daily-recap-plugin",
+  "version": "1.0.0",
+  "description": "Generate recap reports from daily notes with intelligent change tracking",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "version": "node version-bump.mjs && git add manifest.json versions.json",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "daily-notes",
+    "recap",
+    "report"
+  ],
+  "author": "zaeberg",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/ui": "^4.0.17",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.19.0",
+    "obsidian": "latest",
+    "tslib": "^2.6.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.17"
+  }
+}

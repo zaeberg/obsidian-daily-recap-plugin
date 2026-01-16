@@ -1,0 +1,10 @@
+{
+  "id": "daily-recap",
+  "name": "Daily Recap",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Generate work recap reports from daily notes with intelligent change tracking. Automatically compiles work logs between meetings, handling updates after sync and marking missing days.",
+  "author": "zaeberg",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}
