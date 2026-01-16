@@ -63,7 +63,7 @@ export class ReportGeneratorService {
   }
 
   /**
-   * Генерирует содержимое для всех заметок
+   * Генерирует содержимое для всех заметок, группируя по секциям
    */
   private static generateNotesContent(
     allFiles: DailyNote[],
@@ -81,56 +81,88 @@ export class ReportGeneratorService {
       moment(a.date).unix() - moment(b.date).unix()
     );
 
-    for (const note of notesToInclude) {
-      content += this.generateNoteSection(note, includedSections);
+    // Определяем какие секции показывать
+    const sectionsToShow = includedSections && includedSections.length > 0
+      ? includedSections
+      : this.extractAllUniqueSections(notesToInclude);
+
+    // Генерируем контент для каждой секции
+    for (const sectionName of sectionsToShow) {
+      content += this.generateSectionContent(sectionName, notesToInclude, includedSections);
+    }
+
+    // Если совсем нет контента
+    if (content.trim().length === 0) {
+      content = '*No daily notes found or no matching sections*\n\n';
     }
 
     return content;
   }
 
   /**
-   * Генерирует секцию для одной заметки
+   * Извлекает все уникальные названия секций из заметок (fallback)
    */
-  private static generateNoteSection(
-    note: DailyNote,
-    includedSections: string[]
-  ): string {
-    const noteDate = moment(note.date);
-    let content = `## ${noteDate.format('dddd, MMMM D, YYYY')}\n\n`;
+  private static extractAllUniqueSections(notes: DailyNote[]): string[] {
+    const uniqueSections = new Set<string>();
 
-    // Извлекаем секции
-    let sections;
-    if (includedSections && includedSections.length > 0) {
-      // Извлекаем только указанные секции
-      sections = SectionExtractor.extractOnly(note.content, includedSections);
-    } else {
-      // Если список секций не настроен - извлекаем все секции (fallback для старых настроек)
-      sections = SectionExtractor.extract(note.content);
+    for (const note of notes) {
+      const sections = SectionExtractor.extract(note.content);
+      Object.keys(sections).forEach(key => uniqueSections.add(key));
     }
 
-    // Проверяем что есть хотя бы одна секция с контентом
-    let hasAnyContent = false;
+    return Array.from(uniqueSections);
+  }
 
-    // Определяем какие секции проверять
-    const sectionsToCheck = includedSections && includedSections.length > 0
-      ? includedSections
-      : Object.keys(sections);
+  /**
+   * Генерирует контент для одной секции по всем дням
+   */
+  private static generateSectionContent(
+    sectionName: string,
+    notes: DailyNote[],
+    includedSections: string[]
+  ): string {
+    let content = '';
+    let hasContent = false;
 
-    // Итерируемся по секциям
-    for (const sectionName of sectionsToCheck) {
+    // Извлекаем все секции из заметок
+    const notesWithSections = notes.map(note => ({
+      note,
+      sections: includedSections && includedSections.length > 0
+        ? SectionExtractor.extractOnly(note.content, includedSections)
+        : SectionExtractor.extract(note.content)
+    }));
+
+    // Генерируем заголовок секции
+    content += `## ${sectionName}\n\n`;
+
+    // Для каждой заметки добавляем контент если он есть
+    for (const { note, sections } of notesWithSections) {
       if (SectionExtractor.hasContent(sections, sectionName)) {
-        hasAnyContent = true;
-        content += `### ${sectionName}\n${SectionExtractor.getContent(sections, sectionName)}\n\n`;
+        hasContent = true;
+        const noteDate = moment(note.date);
+        content += `- ${noteDate.format('dddd, MMMM D, YYYY')}\n`;
+        content += this.indentContent(SectionExtractor.getContent(sections, sectionName));
+        content += '\n';
       }
     }
 
-    if (!hasAnyContent) {
-      content += '*No matching sections found*\n\n';
+    // Если нет контента ни в одном дне, пропускаем секцию
+    if (!hasContent) {
+      return '';
     }
 
-    content += '---\n\n';
+    // Добавляем пустую строку между секциями
+    content += '\n';
 
     return content;
+  }
+
+  /**
+   * Добавляет отступ (2 пробела) к каждой строке контента
+   */
+  private static indentContent(content: string): string {
+    if (!content) return '';
+    return content.split('\n').map(line => `  ${line}`).join('\n') + '\n';
   }
 
   /**

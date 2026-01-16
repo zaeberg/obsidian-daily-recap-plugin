@@ -57,7 +57,7 @@ describe('ReportGeneratorService', () => {
       expect(result).not.toContain('Previous report:');
     });
 
-    it('should include note sections with content', () => {
+    it('should group sections instead of days', () => {
       const noteContent = `---
 type: daily
 date: 2024-01-08
@@ -65,9 +65,11 @@ date: 2024-01-08
 
 ## План (3 главных задачи)
 - Task 1
+- Task 2
 
 ## Сегодня (рабочий лог)
-- 09:00 Started work`;
+- 09:00 Started work
+- 10:30 Meeting`;
 
       const reportData: ReportData = {
         startDate: moment('2024-01-08'),
@@ -80,14 +82,281 @@ date: 2024-01-08
       const result = ReportGeneratorService.generateReport(
         reportData,
         lastReport,
-        ['План (3 главных задачи)', 'Сегодня (рабочий лог)', 'Блокеры / вопросы', 'Итого']
+        ['План (3 главных задачи)', 'Сегодня (рабочий лог)']
       );
 
-      expect(result).toContain('## Monday, January 8, 2024');
-      expect(result).toContain('### План (3 главных задачи)');
-      expect(result).toContain('- Task 1');
-      expect(result).toContain('### Сегодня (рабочий лог)');
-      expect(result).toContain('- 09:00 Started work');
+      // Проверяем что секции идут как ## заголовки верхнего уровня
+      expect(result).toContain('## План (3 главных задачи)');
+      expect(result).toContain('## Сегодня (рабочий лог)');
+
+      // Проверяем что дни идут как элементы списка
+      expect(result).toContain('- Monday, January 8, 2024');
+
+      // Проверяем что контент имеет отступ
+      expect(result).toContain('  - Task 1');
+      expect(result).toContain('  - 09:00 Started work');
+    });
+
+    it('should handle multiple days in one section', () => {
+      const note1Content = `---
+type: daily
+date: 2024-01-08
+---
+
+## План (3 главных задачи)
+- Task Jan 8`;
+
+      const note2Content = `---
+type: daily
+date: 2024-01-09
+---
+
+## План (3 главных задачи)
+- Task Jan 9`;
+
+      const reportData: ReportData = {
+        startDate: moment('2024-01-08'),
+        endDate: moment('2024-01-09'),
+        allFiles: [
+          createMockNote('2024-01-08', '/2024-01-08.md', note1Content),
+          createMockNote('2024-01-09', '/2024-01-09.md', note2Content),
+        ],
+        includedFiles: ['/2024-01-08.md', '/2024-01-09.md'],
+      };
+      const lastReport = null;
+
+      const result = ReportGeneratorService.generateReport(
+        reportData,
+        lastReport,
+        ['План (3 главных задачи)']
+      );
+
+      // Оба дня должны быть в одной секции
+      const planSection = result.match(/## План \(3 главных задачи\)([\s\S]*?)(?=##|$)/)?.[0];
+      expect(planSection).toBeDefined();
+      expect(planSection).toContain('- Monday, January 8, 2024');
+      expect(planSection).toContain('  - Task Jan 8');
+      expect(planSection).toContain('- Tuesday, January 9, 2024');
+      expect(planSection).toContain('  - Task Jan 9');
+    });
+
+    it('should order days chronologically within sections', () => {
+      const note1Content = `---
+type: daily
+date: 2024-01-08
+---
+
+## План (3 главных задачи)
+- Task Jan 8`;
+
+      const note2Content = `---
+type: daily
+date: 2024-01-10
+---
+
+## План (3 главных задачи)
+- Task Jan 10`;
+
+      // allFiles в обратном порядке
+      const reportData: ReportData = {
+        startDate: moment('2024-01-08'),
+        endDate: moment('2024-01-10'),
+        allFiles: [
+          createMockNote('2024-01-10', '/2024-01-10.md', note2Content),
+          createMockNote('2024-01-08', '/2024-01-08.md', note1Content),
+        ],
+        includedFiles: ['/2024-01-08.md', '/2024-01-10.md'],
+      };
+      const lastReport = null;
+
+      const result = ReportGeneratorService.generateReport(
+        reportData,
+        lastReport,
+        ['План (3 главных задачи)']
+      );
+
+      // Находим позиции дней в секции
+      const jan8Index = result.indexOf('Monday, January 8, 2024');
+      const jan10Index = result.indexOf('Wednesday, January 10, 2024');
+
+      // Jan 8 должен идти раньше Jan 10 (хронологический порядок)
+      expect(jan8Index).toBeLessThan(jan10Index);
+      expect(jan8Index).toBeGreaterThan(-1);
+      expect(jan10Index).toBeGreaterThan(-1);
+    });
+
+    it('should order sections according to includedSections', () => {
+      const noteContent = `---
+type: daily
+date: 2024-01-08
+---
+
+## План (3 главных задачи)
+- Task 1
+
+## Сегодня (рабочий лог)
+- 09:00 Work
+
+## Блокеры / вопросы
+- Blocker 1`;
+
+      const reportData: ReportData = {
+        startDate: moment('2024-01-08'),
+        endDate: moment('2024-01-08'),
+        allFiles: [createMockNote('2024-01-08', '/2024-01-08.md', noteContent)],
+        includedFiles: ['/2024-01-08.md'],
+      };
+      const lastReport = null;
+
+      const result = ReportGeneratorService.generateReport(
+        reportData,
+        lastReport,
+        ['Сегодня (рабочий лог)', 'План (3 главных задачи)', 'Блокеры / вопросы']
+      );
+
+      // Проверяем порядок секций
+      const todayIndex = result.indexOf('## Сегодня (рабочий лог)');
+      const planIndex = result.indexOf('## План (3 главных задачи)');
+      const blockersIndex = result.indexOf('## Блокеры / вопросы');
+
+      expect(todayIndex).toBeLessThan(planIndex);
+      expect(planIndex).toBeLessThan(blockersIndex);
+    });
+
+    it('should skip empty sections', () => {
+      const noteContent = `---
+type: daily
+date: 2024-01-08
+---
+
+## План (3 главных задачи)
+- Task 1`;
+
+      const reportData: ReportData = {
+        startDate: moment('2024-01-08'),
+        endDate: moment('2024-01-08'),
+        allFiles: [createMockNote('2024-01-08', '/2024-01-08.md', noteContent)],
+        includedFiles: ['/2024-01-08.md'],
+      };
+      const lastReport = null;
+
+      const result = ReportGeneratorService.generateReport(
+        reportData,
+        lastReport,
+        ['План (3 главных задачи)', 'Сегодня (рабочий лог)', 'Блокеры / вопросы']
+      );
+
+      // План должен быть
+      expect(result).toContain('## План (3 главных задачи)');
+
+      // Пустые секции не должны быть
+      expect(result).not.toContain('## Сегодня (рабочий лог)');
+      expect(result).not.toContain('## Блокеры / вопросы');
+    });
+
+    it('should skip days where section is empty', () => {
+      const note1Content = `---
+type: daily
+date: 2024-01-08
+---
+
+## План (3 главных задачи)
+- Task Jan 8`;
+
+      const note2Content = `---
+type: daily
+date: 2024-01-09
+---
+
+## Сегодня (рабочий лог)
+- Work on Jan 9`;
+
+      const reportData: ReportData = {
+        startDate: moment('2024-01-08'),
+        endDate: moment('2024-01-09'),
+        allFiles: [
+          createMockNote('2024-01-08', '/2024-01-08.md', note1Content),
+          createMockNote('2024-01-09', '/2024-01-09.md', note2Content),
+        ],
+        includedFiles: ['/2024-01-08.md', '/2024-01-09.md'],
+      };
+      const lastReport = null;
+
+      const result = ReportGeneratorService.generateReport(
+        reportData,
+        lastReport,
+        ['План (3 главных задачи)', 'Сегодня (рабочий лог)']
+      );
+
+      // В секции План должен быть только Jan 8
+      const planSection = result.match(/## План \(3 главных задачи\)([\s\S]*?)(?=## Сегодня|$)/)?.[0];
+      expect(planSection).toBeDefined();
+      expect(planSection).toContain('Monday, January 8, 2024');
+      expect(planSection).not.toContain('Tuesday, January 9, 2024');
+
+      // В секции Сегодня должен быть только Jan 9
+      const todaySection = result.match(/## Сегодня \(рабочий лог\)([\s\S]*?)(?=---|$)/)?.[0];
+      expect(todaySection).toBeDefined();
+      expect(todaySection).toContain('Tuesday, January 9, 2024');
+      expect(todaySection).not.toContain('Monday, January 8, 2024');
+    });
+
+    it('should handle notes without any matching sections', () => {
+      const noteContent = `---
+type: daily
+date: 2024-01-08
+---
+
+No sections here`;
+
+      const reportData: ReportData = {
+        startDate: moment('2024-01-08'),
+        endDate: moment('2024-01-08'),
+        allFiles: [createMockNote('2024-01-08', '/2024-01-08.md', noteContent)],
+        includedFiles: ['/2024-01-08.md'],
+      };
+      const lastReport = null;
+
+      const result = ReportGeneratorService.generateReport(
+        reportData,
+        lastReport,
+        ['План (3 главных задачи)', 'Сегодня (рабочий лог)']
+      );
+
+      // Должно быть сообщение что нет контента
+      expect(result).toContain('*No daily notes found or no matching sections*');
+    });
+
+    it('should filter out non-included files', () => {
+      const noteContent = `---
+type: daily
+date: 2024-01-08
+---
+
+## План (3 главных задачи)
+- Task 1`;
+
+      const reportData: ReportData = {
+        startDate: moment('2024-01-08'),
+        endDate: moment('2024-01-08'),
+        allFiles: [
+          createMockNote('2024-01-08', '/2024-01-08.md', noteContent),
+          createMockNote('2024-01-09', '/2024-01-09.md', noteContent),
+        ],
+        includedFiles: ['/2024-01-08.md'], // Только первый файл
+      };
+      const lastReport = null;
+
+      const result = ReportGeneratorService.generateReport(
+        reportData,
+        lastReport,
+        ['План (3 главных задачи)']
+      );
+
+      // Должен быть только Jan 8
+      expect(result).toContain('Monday, January 8, 2024');
+      // Не должно быть Jan 9
+      expect(result).not.toContain('Tuesday, January 9, 2024');
     });
 
     it('should not mark files as updated (no change tracking)', () => {
@@ -115,23 +384,24 @@ date: 2024-01-08
       const result = ReportGeneratorService.generateReport(
         reportData,
         lastReport,
-        ['План (3 главных задачи)', 'Сегодня (рабочий лог)', 'Блокеры / вопросы', 'Итого']
+        ['План (3 главных задачи)']
       );
 
       // Не должно быть пометок об обновлениях
       expect(result).not.toContain('⚠️ Updated since last report');
       // Но контент должен быть включён
-      expect(result).toContain('### План (3 главных задачи)');
-      expect(result).toContain('- Task 1');
+      expect(result).toContain('## План (3 главных задачи)');
+      expect(result).toContain('  - Task 1');
     });
 
-    it('should handle notes without content', () => {
+    it('should handle empty includedSections (fallback to all sections)', () => {
       const noteContent = `---
 type: daily
 date: 2024-01-08
 ---
 
-No sections here`;
+## Custom Section
+- Custom content`;
 
       const reportData: ReportData = {
         startDate: moment('2024-01-08'),
@@ -144,88 +414,12 @@ No sections here`;
       const result = ReportGeneratorService.generateReport(
         reportData,
         lastReport,
-        ['План (3 главных задачи)', 'Сегодня (рабочий лог)', 'Блокеры / вопросы', 'Итого']
+        [] // Пустой includedSections
       );
 
-      expect(result).toContain('*No matching sections found*');
-    });
-
-    it('should filter out non-included files', () => {
-      const noteContent = `---
-type: daily
-date: 2024-01-08
----
-
-## План (3 главных задачи)
-- Task 1`;
-
-      const reportData: ReportData = {
-        startDate: moment('2024-01-08'),
-        endDate: moment('2024-01-08'),
-        allFiles: [
-          createMockNote('2024-01-08', '/2024-01-08.md', noteContent),
-          createMockNote('2024-01-09', '/2024-01-09.md', noteContent),
-        ],
-        includedFiles: ['/2024-01-08.md'], // Only first file included
-      };
-      const lastReport = null;
-
-      const result = ReportGeneratorService.generateReport(
-        reportData,
-        lastReport,
-        ['План (3 главных задачи)', 'Сегодня (рабочий лог)', 'Блокеры / вопросы', 'Итого']
-      );
-
-      // Should only include the first note (2024-01-08)
-      expect(result).toContain('Monday, January 8, 2024');
-      expect(result).toContain('Task 1');
-      // Should not include the second note
-      expect(result).not.toContain('Tuesday, January 9, 2024');
-    });
-
-    it('should order notes from oldest to newest', () => {
-      const noteContent = `---
-type: daily
-date: 2024-01-08
----
-
-## План (3 главных задачи)
-- Task for Jan 8`;
-
-      const note2Content = `---
-type: daily
-date: 2024-01-10
----
-
-## План (3 главных задачи)
-- Task for Jan 10`;
-
-      // allFiles в обратном порядке (как возвращает репозиторий)
-      const reportData: ReportData = {
-        startDate: moment('2024-01-08'),
-        endDate: moment('2024-01-10'),
-        allFiles: [
-          createMockNote('2024-01-10', '/2024-01-10.md', note2Content),
-          createMockNote('2024-01-08', '/2024-01-08.md', noteContent),
-        ],
-        includedFiles: ['/2024-01-08.md', '/2024-01-10.md'],
-      };
-      const lastReport = null;
-
-      const result = ReportGeneratorService.generateReport(
-        reportData,
-        lastReport,
-        ['План (3 главных задачи)', 'Сегодня (рабочий лог)', 'Блокеры / вопросы', 'Итого']
-      );
-
-      // Находим позиции заголовков
-      const jan8Index = result.indexOf('Monday, January 8, 2024');
-      const jan10Index = result.indexOf('Wednesday, January 10, 2024');
-
-      // Jan 8 должен идти раньше Jan 10 (хронологический порядок)
-      expect(jan8Index).toBeLessThan(jan10Index);
-      expect(jan8Index).toBeGreaterThan(-1);
-      expect(jan10Index).toBeGreaterThan(-1);
+      // Должна извлечься Custom Section (fallback)
+      expect(result).toContain('## Custom Section');
+      expect(result).toContain('  - Custom content');
     });
   });
 
